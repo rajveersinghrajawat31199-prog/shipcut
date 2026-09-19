@@ -1,0 +1,3 @@
+# shipcut
+
+Initializing repository...
