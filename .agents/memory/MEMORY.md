@@ -1,0 +1,5 @@
+- [SSE: use res.on("close"), not req.on("close")](sse-close-event-gotcha.md) — req fires "close" once its body is read, not on client disconnect; kills long-lived streams after 1 write.
+- [LLM tag-stream parsing](llm-tag-stream-parsing.md) — Claude reliably opens `[TAG]` sections but not reliably `[/TAG]`; treat the next open tag (or stream end) as an implicit close.
+- [Vite mid-session dep optimize → Invalid hook call](vite-late-dep-optimize-invalid-hook.md) — first-time import of a package mid-session can throw a transient hook error on the forced reload; restart the dev server before suspecting duplicate React.
+- [Headless Chrome tools on NixOS](headless-chrome-nixos.md) — self-downloaded Chrome binaries miss NixOS shared libs; tools often ignore PUPPETEER_EXECUTABLE_PATH, need their own custom env var instead.
+- [Playwright tester can't decode H.264](playwright-tester-no-h264.md) — its Chromium has no H.264 decoder; verify video bugs server-side (ffmpeg decode + curl Range check) before trusting the browser symptom.

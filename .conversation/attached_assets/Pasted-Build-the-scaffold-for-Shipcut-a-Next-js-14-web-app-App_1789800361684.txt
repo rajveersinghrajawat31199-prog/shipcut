@@ -1,0 +1,40 @@
+Build the scaffold for "Shipcut" — a Next.js 14 web app (App Router, TypeScript, Tailwind).
+
+Product: users paste a website URL, get back a 30-second AI-generated product demo video.
+For now build ONLY the UI + fake streaming. No real AI calls yet.
+
+Pages:
+- / (landing): centered layout, huge "Shipcut" wordmark, tagline "Paste a URL. Ship a video in 3 minutes.", one big URL input with a "Generate" button
+- /generate: shows a live "agent panel" — 5 vertical cards labeled:
+    1. Brand Analyst
+    2. Creative Director
+    3. Storyboard Artist
+    4. Motion Designer
+    5. Critic
+  Each card has: agent name, current status text, and a small progress state (idle / thinking / done).
+  Cards light up one at a time as SSE events arrive.
+- When all 5 are done, show a video player (use an HTML5 <video> with a placeholder MP4 for now — hardcode /demo.mp4)
+
+Backend:
+- API route POST /api/generate at app/api/generate/route.ts
+- Accepts { url: string }
+- Returns a text/event-stream (Server-Sent Events)
+- Streams these events on a timer for now, one every 4 seconds:
+    { agent: "Brand Analyst", status: "Analyzing brand system..." }
+    { agent: "Brand Analyst", status: "done" }
+    { agent: "Creative Director", status: "Drafting concept..." }
+    { agent: "Creative Director", status: "done" }
+    ... and so on through all 5 agents
+    { done: true, videoUrl: "/demo.mp4" }
+
+Design system:
+- Colors: accent #FF3C00 (orange), background #FAFAF7 (cream), text #0E0E0F (near-black), muted #6B6B70
+- Fonts: Space Grotesk (headings + body), JetBrains Mono (agent status text, timestamps)
+- Layout: generous whitespace, bold typography, minimal chrome. Think Linear × Vercel.
+
+Also:
+- Drop a placeholder /public/demo.mp4 (any 5-second clip is fine; I'll replace it)
+- Env var stub: ANTHROPIC_API_KEY (leave empty for now)
+- Install: @anthropic-ai/sdk, cheerio
+
+Don't implement any real Claude calls yet. Just get the UI + fake SSE streaming working end-to-end so I can click Generate and watch the 5 agents light up in sequence before the video plays.

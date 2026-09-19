@@ -1,0 +1,101 @@
+Wire up the real generation pipeline. Replace the fake SSE timer with real logic.
+
+## Env vars needed
+- ANTHROPIC_API_KEY (add to Replit secrets)
+
+## Install
+- @anthropic-ai/sdk (already there)
+- cheerio (already there)
+
+## /api/generate/route.ts changes
+
+Accept POST { url: string }, return text/event-stream.
+
+Step 1 — Scrape the URL:
+- Fetch the URL with 5s timeout
+- Use cheerio to extract:
+    title (from <title>)
+    metaDescription (from <meta name="description">)
+    h1s (first 3 <h1> texts)
+    ogImage (from og:image)
+- If fetch fails, use a fallback object: { title: url, metaDescription: "", h1s: [], ogImage: "" }
+- Emit SSE: { event: "scrape_done", data: <scraped object> }
+
+Step 2 — Call Claude with streaming:
+- Use @anthropic-ai/sdk
+- Model: claude-sonnet-5 (id: "claude-sonnet-5")
+- Max tokens: 4000
+- Stream: true
+- System prompt (verbatim, do not paraphrase):
+
+"""
+You are the orchestration engine for Shipcut, an AI video studio. A user has given you a website URL. Five specialist agents will collaborate to design a 30-second product demo video for that brand.
+
+Output your response as five tagged sections, in order. Each section is written IN CHARACTER as that agent, in first person, present tense. Keep each section to 3-5 concise sentences. Be substantive — reference real observations from the scraped data.
+
+[BRAND_ANALYST]
+Analyze the brand: what does this product do, who is the customer, what is the visible personality (color/type/voice), what one word captures the brand.
+[/BRAND_ANALYST]
+
+[CREATIVE_DIRECTOR]
+Propose the video's central angle in one sentence. Then name the emotional arc (setup → tension → payoff) and the single strongest proof point to show.
+[/CREATIVE_DIRECTOR]
+
+[STORYBOARD_ARTIST]
+Outline exactly 5 scenes (5-7 seconds each). For each: scene number, visual description in one sentence, on-screen text if any.
+[/STORYBOARD_ARTIST]
+
+[MOTION_DESIGNER]
+Describe the motion character: pacing (energetic / measured / cinematic), 2-3 signature moves (e.g., type-on, data count-up, UI reveal), and the palette + type stack you'd use.
+[/MOTION_DESIGNER]
+
+[CRITIC]
+Review the concept for brand-safety and clarity. Name one specific improvement. End with either "APPROVED FOR PRODUCTION" or "REVISION NEEDED".
+[/CRITIC]
+
+Rules:
+- No sparkle emojis, no marketing fluff.
+- Reference the scraped brand data specifically.
+- Speak as a professional studio, not a chatbot.
+"""
+
+- User message: "Brand URL: {url}\n\nScraped data:\n{JSON.stringify(scraped)}"
+
+Step 3 — Parse streamed response and emit SSE:
+- As tokens stream in, buffer them.
+- Detect when a [AGENT_NAME] opening tag arrives → emit { event: "agent_start", data: { agent: "Brand Analyst" } }
+- Emit tokens as they arrive within a section → { event: "agent_token", data: { agent: "Brand Analyst", token: "..." } }
+- Detect closing [/AGENT_NAME] tag → emit { event: "agent_done", data: { agent: "Brand Analyst" } }
+- Map tag names to display names:
+    BRAND_ANALYST → "Brand Analyst"
+    CREATIVE_DIRECTOR → "Creative Director"
+    STORYBOARD_ARTIST → "Storyboard Artist"
+    MOTION_DESIGNER → "Motion Designer"
+    CRITIC → "Critic"
+
+Step 4 — Pick video and finish:
+- After all 5 agents done, map the URL's hostname to a video:
+    stripe.com → /videos/stripe.mp4
+    notion.so → /videos/notion.mp4
+    linear.app → /videos/linear.mp4
+    vercel.com → /videos/vercel.mp4
+    default → /videos/generic.mp4
+- Emit { event: "done", data: { videoUrl: "..." } }
+- Close the stream.
+
+## /public/videos/ folder
+- Create it. Leave a placeholder README saying "drop demo videos here"
+- For now, use /public/demo.mp4 (the existing placeholder) for all 5 slots so it doesn't 404
+
+## Frontend changes (app/generate/page.tsx)
+- Update the SSE consumer to handle the new events
+- Each agent card now streams live text (append tokens as they arrive)
+- Show a subtle blinking cursor at the end of each agent's text while streaming
+- When agent_done arrives, mark the card as "done" (checkmark, no cursor)
+- When done event arrives, show the video player with the returned videoUrl
+
+## Testing
+- Add a temporary "Try demo URL" chip below the input with 4 suggestions: stripe.com, notion.so, linear.app, vercel.com
+- Clicking a chip fills the input and hits Generate
+
+Do not touch the visual design yet. I'll rebrand in the next step.

@@ -1,0 +1,97 @@
+Consolidated final polish before deploy. Three changes in one pass:
+(1) two-tier serving architecture, (2) disclosure lines and landing page
+updates, (3) copy scrub for video length and audience positioning.
+
+## Change 1 — Two-tier serving (architecture pivot)
+
+Flip the video-map cached lookup ABOVE fresh generation. Do not touch
+the composition generator, hyperframes-render module, or the SSE parser.
+
+In generate.ts:
+
+1. After the 5-agent streaming AND the composition_start / composition_token
+   / composition_done events fire (keep those exactly as they are — the
+   composition is still real Claude output), check the video-map for the
+   requested hostname.
+
+2. If resolveVideoUrl returns a path other than /demo.mp4 (i.e. an actual
+   curated file exists in /public/videos/ for this hostname):
+   - Emit render_start
+   - Emit ONE render_progress { pct: 100, stage: "Serving curated Studio Tier output" }
+   - Emit render_done
+   - Emit done { videoUrl: <curated path>, fresh: false, curated: true }
+   - SKIP the actual hyperframes render for this request.
+
+3. If no curated file exists (resolver returned /demo.mp4), run the fresh
+   render pipeline exactly as currently implemented, and emit done with
+   { fresh: true, curated: false }.
+
+4. If the fresh render fails, fall back as currently implemented, with
+   { fresh: false, curated: false, fallback: true }.
+
+## Change 2 — Disclosure lines (frontend)
+
+Above the video player element on the generate page, show a different
+line depending on which tier fired:
+- When curated: true → in Verdigris (#2E7D5B), Geist Mono uppercase,
+  +4% tracking: "CURATED · STUDIO TIER"
+- When fresh: true → in Tally (#D92E24), same style:
+  "LIVE · FAST TIER · GENERATED FROM SCRATCH"
+- When fallback: true → in Graphite (#5B5A55), same style:
+  "USING CACHED FALLBACK"
+
+On the landing page, replace whatever disclosure line currently sits
+under the demo URL chips with:
+  "TWO TIERS · STUDIO (CURATED) · FAST (LIVE)"
+Geist Mono, uppercase, +4% letter-spacing, Graphite color, centered.
+
+## Change 3 — Copy scrub (audience + video length)
+
+The previous pass left some copy unchanged thinking it was brand-approved.
+The user has explicitly approved these updates. Apply them all.
+
+3a. Video length — remove every hardcoded length number from the
+frontend:
+- Landing page hero subtitle: any "30-second product demo" or similar
+  phrasing → replace with "One demo video, tuned to your brand."
+- Landing page footer stat "30 SECONDS" → replace with "ADAPTIVE LENGTH"
+- Any other UI copy specifying "30 seconds" or "15 seconds" or 
+  "30-second" or "15-second" as a video length → drop the number or use
+  "adaptive length"
+- Do NOT touch "under three minutes", "~90 seconds", or "~90S GENERATION"
+  — those refer to generation time and stay.
+
+3b. Audience positioning — broaden any narrow role references at the
+positioning level (do not change body copy that mentions PMM as a role):
+- Any TOP-LEVEL audience framing that says "MADE FOR PRODUCT MARKETING
+  TEAMS" or similar → change to "MADE FOR SAAS, TECH, AND ENTERPRISE
+  TEAMS THAT SHIP"
+- If the landing page header currently reads "SHIPCUT STUDIO / v0.1",
+  leave it alone.
+- If any prose in the app talks about "product marketing teams" as the
+  target buyer (like a subtitle or footer positioning line), broaden to
+  "SaaS, tech, and enterprise teams."
+
+## Do NOT touch
+- The 5-agent Claude system prompt
+- The composition generator prompt or template
+- The hyperframes-render module
+- Environment variables or env config
+- The Anthropic client wiring
+- Test files
+- The video-map file itself (only how it's used in generate.ts)
+
+## Verify (report pass/fail for each)
+1. Paste replit.com → 5 agents stream → composition HTML streams →
+   Replit Interrogation video plays with "CURATED · STUDIO TIER" label.
+   No hyperframes render process spawns.
+2. Paste razorpay.com → same behavior, Razorpay video plays with the
+   Studio Tier label.
+3. Paste vercel.com (or any unknown URL) → fresh generation runs, the
+   render pipeline actually executes, resulting MP4 plays with
+   "LIVE · FAST TIER · GENERATED FROM SCRATCH" label.
+4. Landing page shows "TWO TIERS · STUDIO (CURATED) · FAST (LIVE)"
+   under the demo chips.
+5. Zero "30 seconds" or "30-second" copy remains anywhere in the UI.
+6. Landing page contains "SAAS, TECH, AND ENTERPRISE TEAMS" as the
+   audience line.

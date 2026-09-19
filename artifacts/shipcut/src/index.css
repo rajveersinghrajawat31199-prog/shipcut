@@ -1,0 +1,172 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap');
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-card-border: var(--card-border);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover-border: var(--popover-border);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  /* Shipcut brand palette -- see replit.md User preferences */
+  --color-paper: var(--paper);
+  --color-paper-deep: var(--paper-deep);
+  --color-fog: var(--fog);
+  --color-ink: var(--ink);
+  --color-graphite: var(--graphite);
+  --color-tally: var(--tally);
+  --color-tally-deep: var(--tally-deep);
+  --color-verdigris: var(--verdigris);
+  --color-safelight: var(--safelight);
+  --color-slate-signal: var(--slate-signal);
+  --color-projection-room: var(--projection-room);
+
+  --ease-brand: var(--ease);
+
+  --font-sans: var(--app-font-sans);
+  --font-mono: var(--app-font-mono);
+  --font-display: var(--app-font-display);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  /* Shipcut brand palette */
+  --paper: #F3F0E8;
+  --paper-deep: #E9E5DA;
+  --fog: #D8D3C6;
+  --ink: #11110F;
+  --graphite: #5B5A55;
+  --tally: #D92E24;
+  --tally-deep: #A8231C;
+  --verdigris: #2E7D5B;
+  --safelight: #B7791F;
+  --slate-signal: #4C6A8A;
+  --projection-room: #0C0C0B;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  --app-font-display: "Instrument Serif", "Times New Roman", serif;
+  --app-font-sans: "Geist", system-ui, -apple-system, sans-serif;
+  --app-font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Semantic tokens, derived from the brand palette above */
+  --background: var(--paper);
+  --foreground: var(--ink);
+
+  --card: var(--paper);
+  --card-foreground: var(--ink);
+  --card-border: var(--fog);
+
+  --popover: var(--paper);
+  --popover-foreground: var(--ink);
+  --popover-border: var(--fog);
+
+  --primary: var(--ink);
+  --primary-foreground: var(--paper);
+
+  --secondary: var(--paper-deep);
+  --secondary-foreground: var(--ink);
+
+  --muted: var(--paper-deep);
+  --muted-foreground: var(--graphite);
+
+  --accent: var(--tally);
+  --accent-foreground: #FFFFFF;
+
+  --destructive: var(--tally-deep);
+  --destructive-foreground: #FFFFFF;
+
+  --border: var(--fog);
+  --input: var(--fog);
+  --ring: var(--tally);
+
+  --radius: 0rem;
+}
+
+.dark {
+  /* Minimal dark mode fallback -- "Projection Room", though light Paper is
+     the default and requested surface. */
+  --background: var(--projection-room);
+  --foreground: var(--paper);
+
+  --card: var(--projection-room);
+  --card-foreground: var(--paper);
+  --card-border: #2A2A27;
+
+  --popover: var(--projection-room);
+  --popover-foreground: var(--paper);
+  --popover-border: #2A2A27;
+
+  --primary: var(--paper);
+  --primary-foreground: var(--projection-room);
+
+  --secondary: #2A2A27;
+  --secondary-foreground: var(--paper);
+
+  --muted: #2A2A27;
+  --muted-foreground: #A5A39B;
+
+  --accent: var(--tally);
+  --accent-foreground: #FFFFFF;
+
+  --destructive: var(--tally-deep);
+  --destructive-foreground: #FFFFFF;
+
+  --border: #2A2A27;
+  --input: #2A2A27;
+  --ring: var(--tally);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .animate-blink-cursor {
+    animation: blink-cursor 1s steps(1) infinite;
+  }
+
+  @keyframes blink-cursor {
+    0%, 49% {
+      opacity: 1;
+    }
+    50%, 100% {
+      opacity: 0;
+    }
+  }
+}

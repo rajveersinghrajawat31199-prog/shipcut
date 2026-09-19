@@ -1,0 +1,85 @@
+Toolchain validation for adding real video rendering to Shipcut. This is
+a GO/NO-GO test — if it fails, we revert. Do not modify any existing
+application code in this step.
+
+Goal: Install headless Chromium + ffmpeg + the `hyperframes` npm package
+in the Replit environment, and render a hardcoded sample HyperFrames
+composition to verify the toolchain works end-to-end.
+
+## Step 1 — Add system packages via Nix
+
+Update the Replit Nix configuration (replit.nix, .replit, or wherever
+system packages are declared for this workspace) to include:
+- chromium
+- ffmpeg-full
+- imagemagick
+
+Restart / reload the Nix env after the change.
+
+## Step 2 — Install hyperframes CLI in the project
+
+npm install hyperframes@latest --save-dev
+
+Also verify puppeteer-core is available (hyperframes uses it):
+npm install puppeteer-core --save
+
+Locate the Nix-installed Chromium binary path (usually under /nix/store/…
+/bin/chromium) and export it as:
+  export PUPPETEER_EXECUTABLE_PATH=<that path>
+Save this in .replit env or a helper script.
+
+## Step 3 — Create a minimal test composition
+
+Create /tmp/hf-test/index.html with a 5-second HyperFrames-style composition:
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12/dist/gsap.min.js"></script>
+</head>
+<body style="margin:0;overflow:hidden;background:#F3F0E8;width:1920px;height:1080px">
+  <div id="root" data-hf-id="root" data-composition-id="test"
+       data-start="0" data-duration="5" data-width="1920" data-height="1080">
+    <div id="hero" data-hf-id="hero" class="clip" data-start="0" data-duration="5"
+         data-width="1920" data-height="1080"
+         style="position:absolute;inset:0;display:flex;align-items:center;
+                justify-content:center;font-family:Georgia,serif;font-size:180px;
+                color:#11110F">
+      Shipcut
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#hero", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 2, ease: "power2.out" }, 0.2);
+    window.__timelines["test"] = tl;
+  </script>
+</body>
+</html>
+
+Also create a minimal /tmp/hf-test/meta.json:
+{ "id": "test", "name": "Toolchain Validation" }
+
+## Step 4 — Render it
+
+From the Replit shell, run:
+  cd /tmp/hf-test && npx hyperframes render --output out.mp4
+
+If hyperframes needs an init step, run `npx hyperframes init` first
+in that directory to scaffold whatever config is required.
+
+## Step 5 — Report results
+
+Tell me EXACTLY what happened:
+- MP4 file was produced at /tmp/hf-test/out.mp4 → paste the file size
+  and duration from `ffprobe out.mp4`
+- Chromium failed to launch → paste the exact error message and any
+  stack trace
+- ffmpeg missing → paste that error
+- hyperframes CLI itself errored → paste the full CLI output
+- Anything hangs or times out → tell me what step
+
+Do NOT modify generate.ts, the frontend, or any of the existing
+application code yet. This is JUST a toolchain probe. The next brief
+depends entirely on whether this render succeeds.

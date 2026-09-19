@@ -1,0 +1,209 @@
+Phase 2 — Wire real HyperFrames rendering into /api/generate.
+
+The Phase 1 toolchain works. Now integrate it into the app so pasting
+any URL produces a real, freshly-generated 15-second video.
+
+## Architecture change
+
+After the existing 5-agent Claude streaming finishes, chain three new
+steps: (a) a second Claude call that generates real HyperFrames HTML
+for this specific brand, (b) writing it to disk, (c) spawning
+`hyperframes render` and streaming its progress, then serving the
+fresh MP4.
+
+## Change 1 — Persist the hyperframes install in the main project
+
+Move the hyperframes install out of /tmp/hf-test into the actual
+backend package.json (whichever workspace hosts generate.ts).
+
+  npm install hyperframes@latest puppeteer-core --save
+
+Persist these env vars in the Replit env config (not just shell):
+  HYPERFRAMES_BROWSER_PATH=<nix chromium path>
+  PUPPETEER_EXECUTABLE_PATH=<nix chromium path>
+
+## Change 2 — Add a composition generator (new file)
+
+Create lib/composition-generator.ts. Export an async generator function
+that streams tokens and returns the final HTML string.
+
+Inputs:
+  - scrapedData: the object already produced by the existing scrape step
+  - agentOutputs: array of the 5 finalized agent section strings
+
+Behavior:
+  - Make a SECOND Claude call via the existing Anthropic AI Integration
+    (same client, same auth as the 5-agent call)
+  - Model: claude-sonnet-5 (id: "claude-sonnet-5") or whatever the
+    existing call uses
+  - Max tokens: 6000
+  - Stream: true
+
+System prompt (verbatim, do not paraphrase):
+
+"You are a HyperFrames composition author. Output ONLY a complete valid
+HTML file for a 15-second product demo video. No markdown fences. No
+explanation before or after. Just the HTML.
+
+Follow this exact template — replace the three headlines and only the
+three headlines. Do not add new elements, do not change the structure,
+do not change the timing, do not change the colors.
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset='UTF-8'>
+  <script src='https://cdn.jsdelivr.net/npm/gsap@3.12/dist/gsap.min.js'></script>
+</head>
+<body style='margin:0;overflow:hidden;background:#F3F0E8;width:1920px;height:1080px;font-family:Georgia,serif;color:#11110F'>
+  <div id='root' data-hf-id='root' data-composition-id='main' data-start='0' data-duration='15' data-width='1920' data-height='1080'>
+    <div id='scene-1' data-hf-id='s1' class='clip' data-start='0' data-duration='5' data-width='1920' data-height='1080' style='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:110px;font-style:italic;text-align:center;padding:0 120px;line-height:1.05'>
+      SCENE_1_HEADLINE
+    </div>
+    <div id='scene-2' data-hf-id='s2' class='clip' data-start='5' data-duration='5' data-width='1920' data-height='1080' style='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:220px;font-weight:700;text-align:center;color:#D92E24;letter-spacing:-0.02em'>
+      SCENE_2_HEADLINE
+    </div>
+    <div id='scene-3' data-hf-id='s3' class='clip' data-start='10' data-duration='5' data-width='1920' data-height='1080' style='position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:96px;text-align:center;padding:0 120px;line-height:1.1'>
+      SCENE_3_HEADLINE
+    </div>
+  </div>
+  <script>
+    window.__timelines = window.__timelines || {};
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo('#scene-1', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.9, ease: 'power2.out' }, 0.3);
+    tl.to('#scene-1', { opacity: 0, duration: 0.4 }, 4.5);
+    tl.fromTo('#scene-2', { opacity: 0, scale: 0.85 }, { opacity: 1, scale: 1, duration: 0.6, ease: 'back.out(2)' }, 5.3);
+    tl.to('#scene-2', { opacity: 0, duration: 0.4 }, 9.5);
+    tl.fromTo('#scene-3', { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.9, ease: 'power2.out' }, 10.3);
+    window.__timelines['main'] = tl;
+  </script>
+</body>
+</html>
+
+Rules for the three headlines:
+- SCENE_1_HEADLINE: a short editorial statement about the brand's core
+  promise, 4-8 words. Use double quotes if a phrase.
+- SCENE_2_HEADLINE: the single most striking number or claim you found
+  in the scraped data, kept punchy (a stat, a scale figure, a %, etc.)
+- SCENE_3_HEADLINE: a closing brand line or CTA, 3-6 words
+
+Do not use exclamation marks. Do not use em dashes. Do not use the banned
+words (magic, wizard, effortless, seamless, supercharge, unlock,
+revolutionary, game-changing).
+
+Output the HTML now. Nothing else."
+
+User message: JSON.stringify({ scraped: scrapedData, analysis: agentOutputs })
+
+## Change 3 — Add a render function (new file)
+
+Create lib/hyperframes-render.ts. Export an async function that:
+- Takes: html string, request id
+- Writes /tmp/renders/<id>/index.html with the html
+- Writes /tmp/renders/<id>/meta.json: { "id": "main", "name": "shipcut-<id>" }
+- Spawns: npx hyperframes render (cwd = /tmp/renders/<id>)
+- Parses the child process stdout for progress lines that look like:
+    "Capturing frame N/TOTAL (X workers)"
+  For each match, computes pct = (N/TOTAL)*100 and yields
+  { stage: `Capturing frame ${N} of ${TOTAL}`, pct }
+- Also yields events for the phases hyperframes emits: setup, encoding,
+  assembling — surface each as its own stage line
+- On successful exit:
+    - Locates the produced MP4 (check /tmp/renders/<id>/ for *.mp4)
+    - Copies it to public/renders/<id>.mp4 (create the dir if missing)
+    - Returns "/renders/<id>.mp4"
+- On non-zero exit or timeout after 90 seconds:
+    - Kills the child
+    - Throws an error
+
+Ensure HYPERFRAMES_BROWSER_PATH and PUPPETEER_EXECUTABLE_PATH are
+inherited by the child process.
+
+## Change 4 — Wire it into /api/generate/route.ts
+
+After the existing 5-agent streaming loop completes normally, do this
+NEW work (replace the current fake render_progress phase):
+
+  const requestId = crypto.randomUUID()
+
+  emit: composition_start { agent: "Composition Author" }
+  const html = await streamCompositionGenerator(scrapedData, agentOutputs, (token) => {
+    emit: composition_token { agent: "Composition Author", token }
+  })
+  emit: composition_done { agent: "Composition Author", html }
+
+  emit: render_start { agent: "Render" }
+  try {
+    for await (const progress of hyperframesRender(html, requestId)) {
+      emit: render_progress { agent: "Render", stage: progress.stage, pct: progress.pct }
+    }
+    const videoUrl = "/renders/" + requestId + ".mp4"
+    emit: render_done { agent: "Render" }
+    emit: done { videoUrl, fresh: true }
+  } catch (err) {
+    // Fallback to the cached video-map result
+    const fallbackUrl = resolveVideoUrl(url) // existing function
+    emit: render_done { agent: "Render" }
+    emit: done { videoUrl: fallbackUrl, fresh: false }
+  }
+
+## Change 5 — Frontend: Composition + Render cards
+
+Two cards below the 5 agent cards on the generate page:
+
+- "01/07" through "05/07" renumbering on the existing agent cards
+- "06/07 Composition Author" card:
+    - Same visual style as agent cards
+    - Body area shows the streaming HTML in Geist Mono, 11px, Ink,
+      inside a scrollable box max-height 260px, preserving whitespace
+      (white-space: pre-wrap; overflow-y: auto; word-break: break-all)
+    - When composition_done fires, add a small "DOWNLOAD .html" button
+      below the card body: mono 11px Tally text, hairline Fog border,
+      radius 2px, padding 6px 12px. Clicking downloads the composition
+      html as `shipcut-<hostname>.html`
+- "07/07 Render" card:
+    - Same visual style, body shows current render_progress.stage in
+      Geist Mono 14px Ink, with a 2px Tally progress bar at the bottom
+      filling from 0 to render_progress.pct over 240ms per event
+
+The playhead bar continues to traverse: card 5 → card 6 → card 7.
+
+## Change 6 — Cleanup
+
+Add a scheduled cleanup: after 10 minutes, delete
+/tmp/renders/<id>/ and public/renders/<id>.mp4 for old requests to
+prevent disk fill. Use a simple setTimeout on each request or a small
+periodic sweep.
+
+## Change 7 — Update the "DEMO MODE" disclosure text
+
+Now that generation is actually real, the disclosure changes:
+- Landing page: replace the "DEMO MODE · CACHED VIDEOS…" line with
+  "LIVE GENERATION · ~90 SECONDS PER VIDEO"
+- Generate page header: replace "DEMO MODE · CACHED OUTPUT" with
+  "LIVE · GENERATING FROM SCRATCH"
+- The "CACHED OUTPUT" line above the video player should now only show
+  when the response had `fresh: false` (fallback path), with text:
+  "USING CACHED FALLBACK · LIVE GENERATION UNAVAILABLE"
+
+## Do NOT touch
+- The 5-agent Claude call system prompt (leave it as is)
+- The tag parser
+- The SSE event names for the existing 5 agents
+
+## Verification (report all of these)
+1. Paste replit.com in the browser preview. Full flow runs end-to-end:
+   agents stream, composition streams with visible HTML, render runs
+   with real progress, MP4 plays fresh (not the Interrogation ad).
+   Total time: report actual number of seconds observed.
+2. Download the composition file — confirm it's valid HTML.
+3. Paste razorpay.com. Same flow, different composition and video.
+4. Paste an arbitrary URL like https://vercel.com. Same real generation
+   happens (no fallback).
+5. Confirm the video that plays IS a fresh 15-second MP4 (check
+   duration in the video element).
+6. Force an error (paste http://this-does-not-exist.example) and
+   confirm graceful fallback to cached video-map with the "CACHED
+   FALLBACK" disclosure showing.
+
+Report each verification with pass/fail and observed timings.

@@ -1,0 +1,202 @@
+Apply the Shipcut brand identity across the entire application. This is a
+UI/design pass only. DO NOT change any backend logic, API routes, the SSE
+event contract, the streaming parser, the video-map, or environment
+variables. If any change would touch those, skip it and tell me.
+
+## Assets already uploaded
+- /public/logos/shipcut-wordmark-ink.svg — dark logo. Use on light backgrounds.
+- /public/logos/shipcut-wordmark-paper.svg — light logo. Use on dark backgrounds.
+Load these as inline SVG or <img>. Never retype the wordmark. Always
+"Shipcut" in prose, never "ShipCut" or "SHIPCUT" (mono labels excepted).
+
+## 1. Design tokens (globals.css + tailwind.config)
+
+Add these CSS variables to :root:
+--paper: #F3F0E8;
+--paper-deep: #E9E5DA;
+--fog: #D8D3C6;
+--ink: #11110F;
+--graphite: #5B5A55;
+--tally: #D92E24;
+--tally-deep: #A8231C;
+--verdigris: #2E7D5B;
+--safelight: #B7791F;
+--slate-signal: #4C6A8A;
+--projection-room: #0C0C0B;
+--ease: cubic-bezier(0.2, 0, 0, 1);
+--font-display: "Instrument Serif", "Times New Roman", serif;
+--font-sans: "Geist", system-ui, -apple-system, sans-serif;
+--font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+Update tailwind.config with matching color names (paper, paper-deep, fog,
+ink, graphite, tally, tally-deep, verdigris, safelight, slate-signal,
+projection-room). Set body background to var(--paper), body text to var(--ink).
+
+## 2. Fonts
+
+Install via next/font/google or @fontsource:
+- Instrument Serif (400, 400 italic) — display only, 48px+
+- Geist (400, 500, 600) — headings + body
+- Geist Mono (400, 500, 600) — status, timecodes, uppercase labels
+
+## 3. Landing page (app/page.tsx)
+
+Layout: full-height Paper canvas, 12-column grid, generous margins.
+
+Header row (60px tall):
+- Left: inline the ink SVG at 140px wide
+- Right: mono label in Graphite, uppercase, +4% letter-spacing:
+  "SHIPCUT STUDIO / v0.1"
+- Below header: 1px Fog hairline across full width
+
+Hero (centered, cols 3–11, 20vh top padding):
+- Display headline in Instrument Serif, 96px on desktop / 56px on mobile,
+  line-height 1.05, tracking -2.5%, color Ink:
+  Paste a URL. Ship a <em>video</em>.
+  (yes, the word "video" is italic — this is the editorial move)
+- 24px space
+- Subtitle in Geist Regular 18px, color Graphite:
+  Five specialist agents. One 30-second product demo. Under three minutes.
+- 48px space
+- URL input:
+    full width of hero column
+    1px hairline border in Fog, no shadow, radius 3px
+    height 68px, padding 20px 24px
+    background Paper
+    Geist Regular 18px in Ink
+    placeholder "https://your-product.com" in Graphite
+    focus: 2px Tally focus ring, 2px offset (use outline, not border, to avoid layout shift)
+- 12px space
+- Generate button:
+    full width, height 68px
+    Tally fill, WHITE label (#FFFFFF), Geist Medium 16px, letter-spacing 0
+    radius 3px, no shadow
+    label: "Generate" followed by " →" (single space + right arrow character)
+    hover: background darkens to Tally Deep, 120ms ease
+
+Demo chips section (48px below button):
+- Mono label in Graphite, uppercase, 12px, +4% letter-spacing:
+  "TRY A DEMO"
+- 12px space, then a horizontal row of 4 chips:
+    stripe.com, notion.so, linear.app, vercel.com
+    Each chip: 1px Fog border, Paper background, Geist Mono 13px in Ink,
+    padding 8px 14px, radius 2px, no shadow
+    Hover: border darkens to Ink, 120ms
+    Click: fills the URL input and hits Generate
+
+Footer strip (bottom of viewport, mono, uppercase, 12px, Graphite,
++4% letter-spacing, 1px Fog hairline above):
+- Left: "MADE BY A STUDIO. DELIVERED IN THREE MINUTES."
+- Right: "5 AGENTS · 30 SECONDS · 1080P"
+
+## 4. Generate page (app/generate/page.tsx)
+
+Preserve the current SSE consumer logic. Restyle only.
+
+Header bar (60px tall):
+- Left: inline ink SVG at 100px wide
+- Center: mono, uppercase, 12px, Graphite:
+  "GENERATING · <hostname of the URL>"
+- Right: mono time counter, "00:00" ticking up. Ink text.
+- Below: 1px Fog hairline
+
+Body layout: 12-column grid, 48px top padding.
+- Left column (cols 1–7): agent panel
+- Right column (cols 8–12): contact sheet + video
+
+Agent panel — 5 stacked cards, 32px gap between:
+- No background fill. No shadow. No box border.
+- Only a 1px Fog hairline as a TOP divider on each card.
+- Padding: 24px 24px 24px 24px (extra left padding is fine since the
+  playhead bar sits in that gutter)
+
+Each card contents (top to bottom):
+- Frame number in Geist Mono, 11px, Graphite, uppercase, +4%: "01 / 05"
+- Agent name in Geist Medium, 22px, Ink: "Brand Analyst"
+- 4px space
+- Status label in Geist Mono, 11px, uppercase, +4%:
+    idle: "STANDBY" in Graphite
+    active: "IN PROGRESS" in Tally
+    done: "DONE" in Verdigris
+- 12px space
+- Streaming body text: Geist Regular 15px, line-height 1.55, Ink
+    (tokens append here as they stream)
+- When streaming: a 2px-wide, 18px-tall vertical Tally bar as a blinking
+  cursor at the end of the last text line. Blink is a hard 1Hz steps() —
+  no smooth fade.
+- When done: cursor removed.
+
+Active-card treatment (THE SIGNATURE MOTION):
+- On the left edge of the currently-active card, a 3px-wide Tally vertical
+  bar spans the card's full height.
+- When the next agent starts, the bar animates its top+bottom Y positions
+  down to the next card (240ms, cubic-bezier(0.2, 0, 0, 1)).
+- This is the "playhead" — brand-critical. Do not use CSS animation
+  fill-mode "backwards" (causes flicker on state change); animate via
+  Framer Motion or a controlled useEffect + inline style transition.
+
+Right column — contact sheet + video:
+- Sticky top-24
+- "CONTACT SHEET" panel:
+    mono label, 11px, Graphite, uppercase, +4%: "FRAMES 01–05"
+    below: a 1-column stack of 5 small frame tiles, 100px tall each,
+      Paper Deep background, 1px Fog border, radius 2px
+    each tile contains just its mono frame number in the top-left corner
+      ("01", "02", ...), Ink, Geist Mono 14px
+    when the corresponding agent completes, add a hand-drawn-feeling
+      Tally circle mark in the top-right corner of that tile
+      (simple SVG circle, stroke Tally, stroke-width 2, no fill, radius 14px)
+- Below the contact sheet (only after the "done" event arrives):
+    small mono label above: "READY · 30s · 1080P" in Verdigris
+    then the <video> element, aspect-ratio 16/9, 1px Fog border, radius 3px,
+    autoPlay muted, controls, poster from the first frame
+
+When "done" arrives:
+- The header center label switches from "GENERATING ·" to "READY ·" in Verdigris
+
+## 5. Global motion rules
+
+- All state transitions use var(--ease) — cubic-bezier(0.2, 0, 0, 1)
+- Durations: 120ms (hover/color), 240ms (state changes), 480ms (initial page fade-in only)
+- NO transform: scale on buttons or cards
+- NO bounce, spring, or wobble
+- NO shadow-based hover elevation
+
+## 6. Voice cleanup pass
+
+Scan every user-facing string in the codebase (page.tsx, generate/page.tsx,
+components, error messages, button labels, empty states). Fix:
+- Remove ALL exclamation marks (!). Replace with periods.
+- Remove ALL em dashes (—). Replace with periods, commas, or split into
+  two sentences.
+- Replace or delete any of these banned words: magic, wizard, effortless,
+  seamless, supercharge, unlock, revolutionary, game-changing.
+
+Rewrite generic error messages in the Shipcut voice — plain, specific,
+state what happened then what's next. References:
+- URL fetch fails: "We couldn't read that page. It may be behind a login.
+  Try a different URL or upload a brief instead."
+- Stream aborted: "The stream stopped at 00:XX. Your progress is saved.
+  Try again."
+- Empty state on generate before any events: "Standing by."
+
+## 7. Do NOT touch
+- app/api/generate/route.ts
+- The tag parser (lib/parser or wherever it lives)
+- SSE event names or payload shapes
+- The Anthropic AI integration setup
+- Environment variables / secrets
+- The video-map logic
+- Any test files
+
+## Verification after you finish
+- The app renders on Paper (#F3F0E8), NOT white
+- The ink SVG logo appears in both page headers
+- Instrument Serif renders correctly on the hero headline (the word
+  "video" should be italic)
+- Clicking the "stripe.com" demo chip still triggers a real generation
+  and the 5 agent cards stream text
+- The Tally playhead bar animates down from card to card as agents
+  progress
+- The contact-sheet grease-pencil circle marks appear on completed frames
+- No new backend dependencies added

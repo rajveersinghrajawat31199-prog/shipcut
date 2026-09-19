@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Shipcut"
+description = "Shipcut turns a pasted website URL into a 30-second AI-generated product demo video. Users land on a bold, minimal page, paste their URL, and watch a live 5-agent pipeline (Brand Analyst, Creative Director, Storyboard Artist, Motion Designer, Critic) work through the generation before the finished video plays. This build wires up the full UI and a simulated agent pipeline with fake timed events -- no real AI calls yet."
+version = "1.0.0"
+id = "artifacts/shipcut"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22534
+
+[services.development]
+run = "pnpm --filter @workspace/shipcut run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/shipcut", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/shipcut/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22534"
+BASE_PATH = "/"
